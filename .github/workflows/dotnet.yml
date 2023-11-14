@@ -37,7 +37,7 @@ jobs:
       Sha: ${{ needs.calculate-version.outputs.Sha }}
     strategy:
       matrix:
-        os: [win10, linux, osx.13, ubuntu.22.04, fedora.38]
+        os: [win, linux, osx]
         platform: [x64, arm64]
         framework: [net8.0]
         release: [Release, V2AndV3Release]

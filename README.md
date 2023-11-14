@@ -73,7 +73,7 @@ cncnet-server --name NewServer
 ### Install as a service on Windows (using PowerShell)
 
 ```
-Download <cncnet-server-win10-x64.zip>
+Download <cncnet-server-win-x64.zip>
 ```
 
 ```
@@ -99,11 +99,11 @@ sudo apt-get update && \
 ```
 
 ```
-wget <cncnet-server-ubuntu.22.04-x64.zip>
+wget <cncnet-server-linux-x64.zip>
 ```
 
 ```
-unzip -d cncnet-server <cncnet-server-ubuntu.22.04-x64.zip>
+unzip -d cncnet-server <cncnet-server-linux-x64.zip>
 ```
 
 ```
