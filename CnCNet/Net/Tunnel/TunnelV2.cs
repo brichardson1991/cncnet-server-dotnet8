@@ -24,7 +24,7 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
         string httpScheme = ServiceOptions.Value.TunnelV2Https ? Uri.UriSchemeHttps : Uri.UriSchemeHttp;
 
         builder.Logging.ConfigureLogging(ServiceOptions.Value.ServerLogLevel, ServiceOptions.Value.SystemLogLevel);
-        _ = builder.WebHost.UseUrls(FormattableString.Invariant($"{httpScheme}://*:{ServiceOptions.Value.TunnelV2Port}"));
+        _ = builder.WebHost.UseUrls(FormattableString.Invariant($"{httpScheme}{Uri.SchemeDelimiter}*:{ServiceOptions.Value.TunnelV2Port}"));
 
         WebApplication app = builder.Build();
 

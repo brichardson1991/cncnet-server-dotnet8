@@ -6,33 +6,33 @@ using System.CommandLine.Parsing;
 
 internal static class RootCommandBuilder
 {
-    private static readonly string[] NameOptionAliases = { "--name", "--n" };
-    private static readonly string[] MaxClientsOptionAliases = { "--maxclients", "--m" };
-    private static readonly string[] AddressLimitOptionAliases = { "--iplimit", "--i" };
-    private static readonly string[] TunnelPortOptionAliases = { "--tunnelport", "--p" };
+    private static readonly string[] NameOptionAliases = ["--name", "--n"];
+    private static readonly string[] MaxClientsOptionAliases = ["--maxclients", "--m"];
+    private static readonly string[] AddressLimitOptionAliases = ["--iplimit", "--i"];
+    private static readonly string[] TunnelPortOptionAliases = ["--tunnelport", "--p"];
 #if EnableLegacyVersion
-    private static readonly string[] TunnelV2PortOptionAliases = { "--tunnelv2port", "--p2" };
+    private static readonly string[] TunnelV2PortOptionAliases = ["--tunnelv2port", "--p2"];
 #endif
-    private static readonly string[] AnnounceIpV6OptionAliases = { "--announceipv6", "--6" };
-    private static readonly string[] AnnounceIpV4OptionAliases = { "--announceipv4", "--4" };
-    private static readonly string[] MaxPacketSizeOptionAliases = { "--maxpacketsize", "--mps" };
-    private static readonly string[] MaxPingsGlobalOptionAliases = { "--maxpingsglobal", "--mpg" };
-    private static readonly string[] MaxPingsPerIpOptionAliases = { "--maxpingsperip", "--mpi" };
-    private static readonly string[] MasterAnnounceIntervalOptionAliases = { "--masterannounceinterval", "--ai" };
-    private static readonly string[] ClientTimeoutOptionAliases = { "--clienttimeout", "--c" };
-    private static readonly string[] NoMasterAnnounceAliases = { "--nomasterannounce", "--nm" };
-    private static readonly string[] MasterPasswordAliases = { "--masterpassword", "--masp" };
-    private static readonly string[] MaintenancePasswordAliases = { "--maintenancepassword", "--maip" };
-    private static readonly string[] MasterServerUrlAliases = { "--masterserverurl", "--mu" };
-    private static readonly string[] NoPeerToPeerAliases = { "--nopeertopeer", "--np" };
-    private static readonly string[] TunnelV3EnabledAliases = { "--tunnelv3enabled", "--3" };
+    private static readonly string[] AnnounceIpV6OptionAliases = ["--announceipv6", "--6"];
+    private static readonly string[] AnnounceIpV4OptionAliases = ["--announceipv4", "--4"];
+    private static readonly string[] MaxPacketSizeOptionAliases = ["--maxpacketsize", "--mps"];
+    private static readonly string[] MaxPingsGlobalOptionAliases = ["--maxpingsglobal", "--mpg"];
+    private static readonly string[] MaxPingsPerIpOptionAliases = ["--maxpingsperip", "--mpi"];
+    private static readonly string[] MasterAnnounceIntervalOptionAliases = ["--masterannounceinterval", "--ai"];
+    private static readonly string[] ClientTimeoutOptionAliases = ["--clienttimeout", "--c"];
+    private static readonly string[] NoMasterAnnounceAliases = ["--nomasterannounce", "--nm"];
+    private static readonly string[] MasterPasswordAliases = ["--masterpassword", "--masp"];
+    private static readonly string[] MaintenancePasswordAliases = ["--maintenancepassword", "--maip"];
+    private static readonly string[] MasterServerUrlAliases = ["--masterserverurl", "--mu"];
+    private static readonly string[] NoPeerToPeerAliases = ["--nopeertopeer", "--np"];
+    private static readonly string[] TunnelV3EnabledAliases = ["--tunnelv3enabled", "--3"];
 #if EnableLegacyVersion
-    private static readonly string[] TunnelV2EnabledAliases = { "--tunnelv2enabled", "--2" };
+    private static readonly string[] TunnelV2EnabledAliases = ["--tunnelv2enabled", "--2"];
 #endif
-    private static readonly string[] ServerLogLevelAliases = { "--serverloglevel", "--sel" };
-    private static readonly string[] SystemLogLevelAliases = { "--systemloglevel", "--syl" };
+    private static readonly string[] ServerLogLevelAliases = ["--serverloglevel", "--sel"];
+    private static readonly string[] SystemLogLevelAliases = ["--systemloglevel", "--syl"];
 #if EnableLegacyVersion
-    private static readonly string[] TunnelV2HttpsAliases = { "--tunnelv2https", "--h" };
+    private static readonly string[] TunnelV2HttpsAliases = ["--tunnelv2https", "--h"];
 #endif
 
     public static RootCommand Build()
@@ -103,7 +103,7 @@ internal static class RootCommandBuilder
             new Option<bool>(NoMasterAnnounceAliases, static () => false, "Don't register to master"),
             new Option<string?>(MasterPasswordAliases, static () => null, "Master password"),
             new Option<string?>(MaintenancePasswordAliases, static () => null, "Maintenance password"),
-            new Option<Uri>(MasterServerUrlAliases, static () => new($"{Uri.UriSchemeHttps}://cncnet.org/api/v1/master-announce"), "Master server URL"),
+            new Option<Uri>(MasterServerUrlAliases, static () => new($"{Uri.UriSchemeHttps}{Uri.SchemeDelimiter}cncnet.org/api/v1/master-announce"), "Master server URL"),
             addressLimitOption,
             new Option<bool>(NoPeerToPeerAliases, static () => false, "Disable STUN NAT traversal server (UDP 8054 & 3478)"),
             new Option<bool>(TunnelV3EnabledAliases, static () => true, "Start a V3 tunnel server"),

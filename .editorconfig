@@ -326,6 +326,7 @@ dotnet_diagnostic.SA1210.severity = warning
 dotnet_diagnostic.SA0001.severity = none
 csharp_style_prefer_top_level_statements = true:silent
 csharp_style_prefer_primary_constructors = true:suggestion
+dotnet_diagnostic.SA1010.severity = none
 
 [*.{cs,vb}]
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
