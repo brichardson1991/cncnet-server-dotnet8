@@ -59,13 +59,15 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
         return (senderId, receiverId);
     }
 
-    protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp)
+    protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress)
     {
-        if ((senderId == receiverId && senderId is not 0u) || remoteEp.Address.Equals(IPAddress.Loopback)
-            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port is 0)
+        var clonedIpEndPoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(socketAddress);
+
+        if ((senderId == receiverId && senderId is not 0u) || IPAddress.IsLoopback(clonedIpEndPoint.Address) || clonedIpEndPoint.Address.Equals(IPAddress.Broadcast)
+            || clonedIpEndPoint.Address.Equals(IPAddress.Any) || clonedIpEndPoint.Address.Equals(IPAddress.IPv6Any) || clonedIpEndPoint.Port is 0)
         {
             if (Logger.IsEnabled(LogLevel.Debug))
-                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} invalid endpoint."));
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {clonedIpEndPoint} invalid endpoint."));
 
             return false;
         }
@@ -73,31 +75,34 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
         return true;
     }
 
-    protected override async ValueTask HandlePacketAsync(
-        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    protected override ValueTask HandlePacketAsync(
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
-        if (!HandleSender(senderId, remoteEp, out TunnelClient? sender))
-            return;
+        if (!HandleSender(senderId, socketAddress, out TunnelClient? sender))
+            return ValueTask.CompletedTask;
 
         if (Mappings!.TryGetValue(receiverId, out TunnelClient? receiver))
-            await ForwardPacketAsync(senderId, receiverId, buffer, remoteEp, sender!, receiver, cancellationToken).ConfigureAwait(false);
-        else if (Logger.IsEnabled(LogLevel.Debug))
-            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} receiver mapping {receiverId} not found."));
+            return ForwardPacketAsync(senderId, receiverId, buffer, sender!, receiver, cancellationToken);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {sender!.RemoteIpEndPoint} receiver mapping {receiverId} not found."));
+
+        return ValueTask.CompletedTask;
     }
 
     private async ValueTask ForwardPacketAsync(
-        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, TunnelClient sender, TunnelClient receiver, CancellationToken cancellationToken)
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, TunnelClient sender, TunnelClient receiver, CancellationToken cancellationToken)
     {
         if (Logger.IsEnabled(LogLevel.Debug))
-            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} {receiverId} receiver mapping found."));
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {sender.RemoteIpEndPoint} {receiverId} receiver mapping found."));
 
-        if (receiver.RemoteEp is null || receiver.RemoteEp.Equals(sender.RemoteEp))
+        if (receiver.RemoteSocketAddress is null || receiver.RemoteSocketAddress.Equals(sender.RemoteSocketAddress))
         {
             if (Logger.IsEnabled(LogLevel.Debug))
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"V{Version} client receiver {receiverId} mapping not found or receiver") +
-                    FormattableString.Invariant($" {receiver.RemoteEp} equals sender {sender.RemoteEp}."));
+                    FormattableString.Invariant($" {receiver.RemoteIpEndPoint} equals sender {sender.RemoteIpEndPoint}."));
             }
 
             return;
@@ -106,52 +111,52 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
         if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
-                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId})."));
+                FormattableString.Invariant($"V{Version} client {sender.RemoteIpEndPoint} ({senderId}) sending {buffer.Length} bytes to ") +
+                FormattableString.Invariant($"{receiver.RemoteIpEndPoint} ({receiverId})."));
         }
         else if (Logger.IsEnabled(LogLevel.Trace))
         {
             Logger.LogTrace(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
-                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}): ") +
+                FormattableString.Invariant($"V{Version} client {sender.RemoteIpEndPoint} ({senderId}) sending {buffer.Length} bytes to ") +
+                FormattableString.Invariant($"{receiver.RemoteIpEndPoint} ({receiverId}): ") +
                 FormattableString.Invariant($" {Convert.ToHexString(buffer.Span)}."));
         }
 
-        _ = await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp, cancellationToken).ConfigureAwait(false);
+        _ = await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteSocketAddress, cancellationToken).ConfigureAwait(false);
     }
 
-    private bool HandleSender(uint senderId, IPEndPoint remoteEp, out TunnelClient? sender)
+    private bool HandleSender(uint senderId, SocketAddress socketAddress, out TunnelClient? sender)
     {
         if (!Mappings!.TryGetValue(senderId, out sender))
         {
             if (Logger.IsEnabled(LogLevel.Debug))
-                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} sender mapping {senderId} not found."));
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {socketAddress} sender mapping {senderId} not found."));
 
             return false;
         }
 
-        if (sender.RemoteEp is null)
+        if (sender.RemoteSocketAddress is null)
         {
-            sender.RemoteEp = remoteEp;
+            sender.RemoteSocketAddress = socketAddress;
 
             if (Logger.IsEnabled(LogLevel.Information))
-                Logger.LogInfo(FormattableString.Invariant($"New V{Version} client from {remoteEp}, "));
+                Logger.LogInfo(FormattableString.Invariant($"New V{Version} client from {sender.RemoteIpEndPoint}, "));
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"{Mappings.Count} clients from ") +
-                    FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteEp?.Address)
+                    FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteIpEndPoint)
                         .Where(static q => q is not null).Distinct().Count()} IPs."));
             }
         }
-        else if (!remoteEp.Equals(sender.RemoteEp))
+        else if (!socketAddress.Equals(sender.RemoteSocketAddress))
         {
             if (Logger.IsEnabled(LogLevel.Debug))
             {
                 Logger.LogDebug(
-                    FormattableString.Invariant($"V{Version} client {remoteEp}") +
-                    FormattableString.Invariant($" did not match {sender.RemoteEp}."));
+                    FormattableString.Invariant($"V{Version} client {socketAddress}") +
+                    FormattableString.Invariant($" did not match {sender.RemoteIpEndPoint}."));
             }
 
             return false;

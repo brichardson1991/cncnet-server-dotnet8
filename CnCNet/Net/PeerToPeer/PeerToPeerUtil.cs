@@ -32,8 +32,8 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
     }
 
     private static bool IsInvalidRemoteIpEndPoint(IPEndPoint remoteEp)
-        => remoteEp.Address.Equals(IPAddress.Loopback) || remoteEp.Address.Equals(IPAddress.Any)
-        || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port is 0;
+        => IPAddress.IsLoopback(remoteEp.Address) || remoteEp.Address.Equals(IPAddress.Broadcast)
+            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.IPv6Any) || remoteEp.Port is 0;
 
     private async Task ResetConnectionCounterAsync(CancellationToken cancellationToken)
     {
@@ -58,7 +58,6 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
     private async ValueTask StartReceiverAsync(int listenPort, CancellationToken cancellationToken)
     {
         using var client = new Socket(SocketType.Dgram, ProtocolType.Udp);
-        var remoteEp = new IPEndPoint(IPAddress.Any, 0);
 
         client.Bind(new IPEndPoint(IPAddress.IPv6Any, listenPort));
 
@@ -69,12 +68,12 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
         {
             using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(64);
             Memory<byte> buffer = memoryOwner.Memory[..64];
-            SocketReceiveFromResult socketReceiveFromResult;
+            var remoteSocketAddress = new SocketAddress(client.AddressFamily);
+            int bytesReceived;
 
             try
             {
-                socketReceiveFromResult = await client.ReceiveFromAsync(
-                    buffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+                bytesReceived = await client.ReceiveFromAsync(buffer, SocketFlags.None, remoteSocketAddress, cancellationToken).ConfigureAwait(false);
             }
             catch (SocketException ex)
             {
@@ -82,27 +81,27 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
                 continue;
             }
 
-            if (socketReceiveFromResult.ReceivedBytes is 48)
+            if (bytesReceived is 48)
             {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 #pragma warning disable IDE0058 // Expression value is never used
-                ReceiveAsync(client, buffer, (IPEndPoint)socketReceiveFromResult.RemoteEndPoint, cancellationToken)
-                    .ConfigureAwait(false);
+                ReceiveAsync(client, buffer, remoteSocketAddress, cancellationToken).ConfigureAwait(false);
 #pragma warning restore IDE0058 // Expression value is never used
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             }
         }
     }
 
-    private async Task ReceiveAsync(
-        Socket client, ReadOnlyMemory<byte> receiveBuffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async Task ReceiveAsync(Socket client, ReadOnlyMemory<byte> receiveBuffer, SocketAddress remoteSocketAddress, CancellationToken cancellationToken)
     {
         try
         {
-            if (logger.IsEnabled(LogLevel.Debug))
-                logger.LogDebug(FormattableString.Invariant($"P2P client {remoteEp} connected."));
+            var remoteIpEndpoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(remoteSocketAddress);
 
-            if (IsInvalidRemoteIpEndPoint(remoteEp) || IsConnectionLimitReached(remoteEp.Address))
+            if (logger.IsEnabled(LogLevel.Debug))
+                logger.LogDebug(FormattableString.Invariant($"P2P client {remoteIpEndpoint} connected."));
+
+            if (IsInvalidRemoteIpEndPoint(remoteIpEndpoint) || IsConnectionLimitReached(remoteIpEndpoint.Address))
                 return;
 
             if (IPAddress.NetworkToHostOrder(BitConverter.ToInt16(receiveBuffer.Span)) is not StunId)
@@ -115,13 +114,13 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
             new Random().NextBytes(sendBuffer.Span);
 #pragma warning restore CA5394 // Do not use insecure randomness
             BitConverter.GetBytes(IPAddress.HostToNetworkOrder(StunId)).AsSpan(..2).CopyTo(sendBuffer.Span[6..8]);
-            byte[] addressBytes = remoteEp.Address.IsIPv4MappedToIPv6 || remoteEp.AddressFamily is AddressFamily.InterNetwork
-                ? remoteEp.Address.MapToIPv4().GetAddressBytes()
-                : remoteEp.Address.GetAddressBytes();
+            byte[] addressBytes = remoteIpEndpoint.Address.IsIPv4MappedToIPv6 || remoteIpEndpoint.AddressFamily is AddressFamily.InterNetwork
+                ? remoteIpEndpoint.Address.MapToIPv4().GetAddressBytes()
+                : remoteIpEndpoint.Address.GetAddressBytes();
 
             addressBytes.AsSpan(..addressBytes.Length).CopyTo(sendBuffer.Span[..addressBytes.Length]);
 
-            byte[] portBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteEp.Port));
+            byte[] portBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)remoteIpEndpoint.Port));
 
             portBytes.AsSpan(..portBytes.Length).CopyTo(sendBuffer.Span[addressBytes.Length..(addressBytes.Length + 2)]);
 
@@ -129,7 +128,7 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
             for (int i = 0; i < addressBytes.Length + portBytes.Length; i++)
                 sendBuffer.Span[i] ^= 0x20;
 
-            _ = await client.SendToAsync(sendBuffer, SocketFlags.None, remoteEp, cancellationToken).ConfigureAwait(false);
+            _ = await client.SendToAsync(sendBuffer, SocketFlags.None, remoteSocketAddress, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
         {

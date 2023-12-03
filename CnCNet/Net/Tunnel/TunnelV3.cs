@@ -40,7 +40,7 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
 
     protected override void CleanupConnection(TunnelClient tunnelClient)
     {
-        int hashCode = tunnelClient.RemoteEp!.Address.GetHashCode();
+        int hashCode = tunnelClient.RemoteSocketAddress!.GetHashCode();
 
         if (--ConnectionCounter![hashCode] <= 0)
             _ = ConnectionCounter.Remove(hashCode, out _);
@@ -54,22 +54,24 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         return (senderId, receiverId);
     }
 
-    protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp)
+    protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress)
     {
+        var ipEndPoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(socketAddress);
+
         if (senderId is 0u)
         {
             if (receiverId is uint.MaxValue && buffer.Length >= TunnelCommandRequestPacketSize)
-                ExecuteCommand((TunnelCommand)buffer.Span[(PlayerIdSize * 2)..((PlayerIdSize * 2) + TunnelCommandSize)][0], buffer, remoteEp);
+                ExecuteCommand((TunnelCommand)buffer.Span[(PlayerIdSize * 2)..((PlayerIdSize * 2) + TunnelCommandSize)][0], buffer, ipEndPoint);
 
             if (receiverId is not 0u)
                 return false;
         }
 
-        if ((senderId == receiverId && senderId is not 0u) || remoteEp.Address.Equals(IPAddress.Loopback)
-            || remoteEp.Address.Equals(IPAddress.Any) || remoteEp.Address.Equals(IPAddress.Broadcast) || remoteEp.Port is 0)
+        if ((senderId == receiverId && senderId is not 0u) || IPAddress.IsLoopback(ipEndPoint.Address) || ipEndPoint.Address.Equals(IPAddress.Broadcast)
+            || ipEndPoint.Address.Equals(IPAddress.Any) || ipEndPoint.Address.Equals(IPAddress.IPv6Any) || ipEndPoint.Port is 0)
         {
             if (Logger.IsEnabled(LogLevel.Debug))
-                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} invalid endpoint."));
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {ipEndPoint} invalid endpoint."));
 
             return false;
         }
@@ -77,59 +79,60 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         return true;
     }
 
-    protected override async ValueTask HandlePacketAsync(
-        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    protected override ValueTask HandlePacketAsync(
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
         if (Mappings!.TryGetValue(senderId, out TunnelClient? sender))
         {
-            if (!HandleExistingClient(remoteEp, sender))
-                return;
+            if (!HandleExistingClient(socketAddress, sender))
+                return ValueTask.CompletedTask;
         }
         else
         {
-            sender = HandleNewClient(senderId, remoteEp);
+            sender = HandleNewClient(senderId, socketAddress);
         }
 
-        if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver) && !receiver.RemoteEp!.Equals(sender.RemoteEp))
-        {
-            await ForwardPacketAsync(senderId, receiverId, buffer, remoteEp, receiver, cancellationToken).ConfigureAwait(false);
-        }
-        else if (Logger.IsEnabled(LogLevel.Debug))
+        if (Mappings.TryGetValue(receiverId, out TunnelClient? receiver) && !receiver.RemoteSocketAddress!.Equals(sender.RemoteSocketAddress))
+            return ForwardPacketAsync(senderId, receiverId, buffer, receiver, cancellationToken);
+
+        if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug(
-                FormattableString.Invariant($"V{Version} client {remoteEp} mapping not found or receiver") +
-                FormattableString.Invariant($" {receiver?.RemoteEp!} equals sender {sender.RemoteEp!}."));
+                FormattableString.Invariant($"V{Version} client {socketAddress} mapping not found or receiver") +
+                FormattableString.Invariant($" {receiver?.RemoteIpEndPoint} equals sender {sender.RemoteIpEndPoint}."));
         }
+
+        return ValueTask.CompletedTask;
     }
 
     private async ValueTask ForwardPacketAsync(
-        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, TunnelClient receiver, CancellationToken cancellationToken)
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, TunnelClient receiver, CancellationToken cancellationToken)
     {
         if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
-                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId})."));
+                FormattableString.Invariant($"V{Version} client {senderId} sending {buffer.Length} bytes to ") +
+                FormattableString.Invariant($"{receiver.RemoteIpEndPoint} ({receiverId})."));
         }
         else if (Logger.IsEnabled(LogLevel.Trace))
         {
             Logger.LogTrace(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId}) sending {buffer.Length} bytes to ") +
-                FormattableString.Invariant($"{receiver.RemoteEp} ({receiverId}):  {Convert.ToHexString(buffer.Span)}."));
+                FormattableString.Invariant($"V{Version} client ({senderId}) sending {buffer.Length} bytes to ") +
+                FormattableString.Invariant($"{receiver.RemoteIpEndPoint} ({receiverId}):  {Convert.ToHexString(buffer.Span)}."));
         }
 
-        _ = await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteEp!, cancellationToken).ConfigureAwait(false);
+        _ = await Client!.SendToAsync(buffer, SocketFlags.None, receiver.RemoteSocketAddress!, cancellationToken).ConfigureAwait(false);
     }
 
-    private TunnelClient HandleNewClient(uint senderId, IPEndPoint remoteEp)
+    private TunnelClient HandleNewClient(uint senderId, SocketAddress socketAddress)
     {
-        TunnelClient sender = new(ServiceOptions.Value.ClientTimeout, remoteEp);
+        TunnelClient sender = new(ServiceOptions.Value.ClientTimeout, socketAddress);
 
         if (Mappings!.Count < ServiceOptions.Value.MaxClients && !MaintenanceModeEnabled
-            && IsNewConnectionAllowed(remoteEp.Address) && Mappings.TryAdd(senderId, sender))
+            && IsNewConnectionAllowed(socketAddress) && Mappings.TryAdd(senderId, sender))
         {
             if (Logger.IsEnabled(LogLevel.Information))
-                Logger.LogInfo(FormattableString.Invariant($"New V{Version} client from {remoteEp}."));
+                Logger.LogInfo(FormattableString.Invariant($"New V{Version} client from {sender.RemoteIpEndPoint}."));
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
@@ -140,28 +143,28 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         }
         else if (Logger.IsEnabled(LogLevel.Information))
         {
-            Logger.LogInfo(FormattableString.Invariant($"Denied new V{Version} client from {remoteEp}"));
+            Logger.LogInfo(FormattableString.Invariant($"Denied new V{Version} client from {sender.RemoteIpEndPoint}"));
         }
 
         return sender;
     }
 
-    private bool HandleExistingClient(IPEndPoint remoteEp, TunnelClient sender)
+    private bool HandleExistingClient(SocketAddress socketAddress, TunnelClient sender)
     {
-        if (!remoteEp.Equals(sender.RemoteEp))
+        if (!socketAddress.Equals(sender.RemoteSocketAddress))
         {
-            if (sender.TimedOut && !MaintenanceModeEnabled && IsNewConnectionAllowed(remoteEp.Address, sender.RemoteEp!.Address))
+            if (sender.TimedOut && !MaintenanceModeEnabled && IsNewConnectionAllowed(socketAddress, sender.RemoteSocketAddress!))
             {
-                sender.RemoteEp = remoteEp;
+                sender.RemoteSocketAddress = socketAddress;
 
                 if (Logger.IsEnabled(LogLevel.Information))
-                    Logger.LogInfo(FormattableString.Invariant($"Reconnected V{Version} client from {remoteEp}."));
+                    Logger.LogInfo(FormattableString.Invariant($"Reconnected V{Version} client from {sender.RemoteIpEndPoint}."));
 
                 if (Logger.IsEnabled(LogLevel.Debug))
                 {
                     Logger.LogDebug(
                         FormattableString.Invariant($"{Mappings!.Count} clients from ") +
-                        FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteEp?.Address)
+                        FormattableString.Invariant($"{Mappings.Values.Select(static q => q.RemoteIpEndPoint)
                             .Where(static q => q is not null).Distinct().Count()} IPs."));
                 }
             }
@@ -170,8 +173,8 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
                 if (Logger.IsEnabled(LogLevel.Debug))
                 {
                     Logger.LogDebug(
-                        FormattableString.Invariant($"V{Version} client {remoteEp} denied {sender.TimedOut}") +
-                        FormattableString.Invariant($" {MaintenanceModeEnabled} {remoteEp.Address} {sender.RemoteEp}."));
+                        FormattableString.Invariant($"V{Version} client {sender.RemoteIpEndPoint} denied {sender.TimedOut}") +
+                        FormattableString.Invariant($" {MaintenanceModeEnabled} {sender.RemoteIpEndPoint}."));
                 }
 
                 return false;
@@ -183,22 +186,22 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         return true;
     }
 
-    private bool IsNewConnectionAllowed(IPAddress newIp, IPAddress? oldIp = null)
+    private bool IsNewConnectionAllowed(SocketAddress newSocketAddress, SocketAddress? oldSocketAddress = null)
     {
-        int hashCode = newIp.GetHashCode();
+        int hashCode = newSocketAddress.GetHashCode();
 
         if (ConnectionCounter!.TryGetValue(hashCode, out int count) && count >= ServiceOptions.Value.IpLimit)
             return false;
 
-        if (oldIp is null)
+        if (oldSocketAddress is null)
         {
             ConnectionCounter[hashCode] = ++count;
         }
-        else if (!newIp.Equals(oldIp))
+        else if (!newSocketAddress.Equals(oldSocketAddress))
         {
             ConnectionCounter[hashCode] = ++count;
 
-            int oldIpHash = oldIp.GetHashCode();
+            int oldIpHash = oldSocketAddress.GetHashCode();
 
             if (--ConnectionCounter[oldIpHash] <= 0)
                 _ = ConnectionCounter.Remove(oldIpHash, out _);
@@ -207,7 +210,7 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         return true;
     }
 
-    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint remoteEp)
+    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint ipEndPoint)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimitInSeconds
             || maintenancePasswordSha1 is null || ServiceOptions.Value.MaintenancePassword!.Length is 0)
@@ -222,7 +225,7 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         if (!commandPasswordSha1.SequenceEqual(maintenancePasswordSha1))
         {
             if (Logger.IsEnabled(LogLevel.Warning))
-                Logger.LogWarning(FormattableString.Invariant($"Invalid Maintenance mode request by {remoteEp}."));
+                Logger.LogWarning(FormattableString.Invariant($"Invalid Maintenance mode request by {ipEndPoint}."));
 
             return;
         }
@@ -234,6 +237,6 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         };
 
         if (Logger.IsEnabled(LogLevel.Warning))
-            Logger.LogWarning(FormattableString.Invariant($"Maintenance mode set to {MaintenanceModeEnabled} by {remoteEp}."));
+            Logger.LogWarning(FormattableString.Invariant($"Maintenance mode set to {MaintenanceModeEnabled} by {ipEndPoint}."));
     }
 }

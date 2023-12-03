@@ -44,8 +44,6 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         StartHeartbeatAsync(cancellationToken);
 #pragma warning restore IDE0058 // Expression value is never used
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-        var remoteEp = new IPEndPoint(IPAddress.Any, 0);
-
         Client.Bind(new IPEndPoint(IPAddress.IPv6Any, Port));
 
         if (Logger.IsEnabled(LogLevel.Information))
@@ -55,13 +53,12 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         {
             using IMemoryOwner<byte> memoryOwner = MemoryPool<byte>.Shared.Rent(ServiceOptions.Value.MaxPacketSize);
             Memory<byte> buffer = memoryOwner.Memory[..ServiceOptions.Value.MaxPacketSize];
-            SocketReceiveFromResult socketReceiveFromResult;
+            var remoteSocketAddress = new SocketAddress(Client.AddressFamily);
+            int receivedBytes;
 
             try
             {
-                socketReceiveFromResult =
-                    await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteEp, cancellationToken)
-                    .ConfigureAwait(false);
+                receivedBytes = await Client.ReceiveFromAsync(buffer, SocketFlags.None, remoteSocketAddress, cancellationToken).ConfigureAwait(false);
             }
             catch (SocketException ex)
             {
@@ -72,8 +69,8 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 #pragma warning disable IDE0058 // Expression value is never used
             DoReceiveAsync(
-                buffer[..socketReceiveFromResult.ReceivedBytes],
-                (IPEndPoint)socketReceiveFromResult.RemoteEndPoint,
+                buffer[..receivedBytes],
+                remoteSocketAddress,
                 cancellationToken).ConfigureAwait(false);
 #pragma warning restore IDE0058 // Expression value is never used
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -94,9 +91,9 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
 
     protected abstract (uint SenderId, uint ReceiverId) GetClientIds(ReadOnlyMemory<byte> buffer);
 
-    protected abstract bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp);
+    protected abstract bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress);
 
-    protected abstract ValueTask HandlePacketAsync(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken);
+    protected abstract ValueTask HandlePacketAsync(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken);
 
     private static IPAddress? GetPublicIpV6Address()
     {
@@ -131,61 +128,61 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         .Where(static q => q.Address.AddressFamily is AddressFamily.InterNetworkV6)
         .Where(static q => q.Address is { IsIPv6SiteLocal: false, IsIPv6UniqueLocal: false, IsIPv6LinkLocal: false });
 
-    private async ValueTask ReceiveAsync(ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async ValueTask ReceiveAsync(ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
         (uint senderId, uint receiverId) = GetClientIds(buffer);
 
         if (Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($"V{Version} client {socketAddress} ({senderId} -> {receiverId}) received") +
                 FormattableString.Invariant($" {buffer.Length} bytes."));
         }
         else if (Logger.IsEnabled(LogLevel.Trace))
         {
             Logger.LogTrace(
-                FormattableString.Invariant($"V{Version} client {remoteEp} ({senderId} -> {receiverId}) received") +
+                FormattableString.Invariant($"V{Version} client {socketAddress} ({senderId} -> {receiverId}) received") +
                 FormattableString.Invariant($" {buffer.Length} bytes: {Convert.ToHexString(buffer.Span)}."));
         }
 
-        if (!ValidateClientIds(senderId, receiverId, buffer, remoteEp))
+        if (!ValidateClientIds(senderId, receiverId, buffer, socketAddress))
             return;
 
-        if (await HandlePingRequestAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false))
+        if (await HandlePingRequestAsync(senderId, receiverId, buffer, socketAddress, cancellationToken).ConfigureAwait(false))
             return;
 
-        await HandlePacketAsync(senderId, receiverId, buffer, remoteEp, cancellationToken).ConfigureAwait(false);
+        await HandlePacketAsync(senderId, receiverId, buffer, socketAddress, cancellationToken).ConfigureAwait(false);
 
         if (Logger.IsEnabled(LogLevel.Debug))
-            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} message handled."));
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {socketAddress} message handled."));
     }
 
     private async ValueTask<bool> HandlePingRequestAsync(
-        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+        uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
         if (senderId is not 0u || receiverId is not 0u)
             return false;
 
         if (buffer.Length is PingRequestPacketSize)
         {
-            if (!IsPingLimitReached(remoteEp.Address))
+            if (!IsPingLimitReached(socketAddress))
             {
                 if (Logger.IsEnabled(LogLevel.Debug))
                 {
                     Logger.LogDebug(
-                        FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
+                        FormattableString.Invariant($"V{Version} client {socketAddress} replying to ping ") +
                         FormattableString.Invariant($"({pingCounter!.Count}/{ServiceOptions.Value.MaxPingsGlobal})."));
                 }
                 else if (Logger.IsEnabled(LogLevel.Trace))
                 {
                     Logger.LogTrace(
-                        FormattableString.Invariant($"V{Version} client {remoteEp} replying to ping ") +
+                        FormattableString.Invariant($"V{Version} client {socketAddress} replying to ping ") +
                         FormattableString.Invariant($"({pingCounter!.Count}/{ServiceOptions.Value.MaxPingsGlobal}):") +
                         FormattableString.Invariant($" {Convert.ToHexString(buffer.Span[..PingResponsePacketSize])}."));
                 }
 
                 _ = await Client!.SendToAsync(
-                        buffer[..PingResponsePacketSize], SocketFlags.None, remoteEp, cancellationToken)
+                        buffer[..PingResponsePacketSize], SocketFlags.None, socketAddress, cancellationToken)
                     .ConfigureAwait(false);
 
                 return true;
@@ -193,7 +190,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
-                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp} ping request ignored:") +
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {socketAddress} ping request ignored:") +
                                 FormattableString.Invariant($" ping limit reached."));
             }
 
@@ -202,14 +199,14 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         }
         else if (Logger.IsEnabled(LogLevel.Debug))
         {
-            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {remoteEp.Address} ping request ignored:") +
+            Logger.LogDebug(FormattableString.Invariant($"V{Version} client {socketAddress} ping request ignored:") +
                             FormattableString.Invariant($" invalid packet size {buffer.Length}."));
         }
 
         return false;
     }
 
-    private async Task DoReceiveAsync(ReadOnlyMemory<byte> buffer, IPEndPoint remoteEp, CancellationToken cancellationToken)
+    private async Task DoReceiveAsync(ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
         try
         {
@@ -221,7 +218,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
                 return;
             }
 
-            await ReceiveAsync(buffer, remoteEp, cancellationToken).ConfigureAwait(false);
+            await ReceiveAsync(buffer, socketAddress, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException ex) when (ex.CancellationToken == cancellationToken)
         {
@@ -268,12 +265,12 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         }
     }
 
-    private bool IsPingLimitReached(IPAddress address)
+    private bool IsPingLimitReached(SocketAddress socketAddress)
     {
         if (pingCounter!.Count >= ServiceOptions.Value.MaxPingsGlobal)
             return true;
 
-        int hashCode = address.GetHashCode();
+        int hashCode = socketAddress.GetHashCode();
 
         if (pingCounter.TryGetValue(hashCode, out int count) && count >= ServiceOptions.Value.MaxPingsPerIp)
             return true;
@@ -328,14 +325,14 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
             {
                 Logger.LogInfo(
                     FormattableString.Invariant($"Removed V{Version} client from ") +
-                    FormattableString.Invariant($"{mapping.Value.RemoteEp?.ToString() ?? "(not connected)"}, "));
+                    FormattableString.Invariant($"{mapping.Value.RemoteIpEndPoint?.ToString() ?? "(not connected)"}, "));
             }
 
             if (Logger.IsEnabled(LogLevel.Debug))
             {
                 Logger.LogDebug(
                     FormattableString.Invariant($"{Mappings!.Count} clients from {Mappings.Values
-                        .Select(static q => q.RemoteEp?.Address).Where(static q => q is not null).Distinct().Count()} IPs."));
+                        .Select(static q => q.RemoteSocketAddress).Where(static q => q is not null).Distinct().Count()} IPs."));
             }
         }
 
