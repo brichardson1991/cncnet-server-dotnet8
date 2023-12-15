@@ -38,7 +38,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
     public virtual async ValueTask StartAsync(CancellationToken cancellationToken)
     {
         Client = new(SocketType.Dgram, ProtocolType.Udp);
-        heartbeatTimer = new(TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval));
+        heartbeatTimer = new(TimeSpan.FromMilliseconds(100));
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 #pragma warning disable IDE0058 // Expression value is never used
         StartHeartbeatAsync(cancellationToken);
@@ -259,6 +259,10 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         {
             await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
         }
+        catch (HttpIOException ex)
+        {
+            await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
+        }
         finally
         {
             httpResponseMessage?.Dispose();
@@ -289,8 +293,13 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
                 if (ServiceOptions.Value is { AnnounceIpV4: true, AnnounceIpV6: true })
                     secondaryIpAddress = GetPublicIpV6Address();
 
+                var masterAnnounceInterval = TimeSpan.FromSeconds(ServiceOptions.Value.MasterAnnounceInterval);
+
                 while (await heartbeatTimer!.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
                 {
+                    if (heartbeatTimer.Period != masterAnnounceInterval)
+                        heartbeatTimer.Period = masterAnnounceInterval;
+
                     int clients = CleanupConnections();
 
                     if (!ServiceOptions.Value.NoMasterAnnounce)

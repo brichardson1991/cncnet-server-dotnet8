@@ -45,6 +45,8 @@ internal static class ExceptionMessageBuilder
     private static void GetExceptionDetails(this StringBuilder sb, Exception ex)
         => sb.AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.Source)}: {ex.Source}"))
             .AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.TargetSite)}: {ex.TargetSite}"))
+            .GetHttpRequestExceptionDetails(ex)
+            .GetHttpIoExceptionDetails(ex)
             .GetSocketExceptionDetails(ex)
             .GetExternalExceptionDetails(ex)
             .AppendLine(FormattableString.Invariant($"{nameof(Exception)}.{nameof(Exception.StackTrace)}: {ex.StackTrace}"));
@@ -65,6 +67,25 @@ internal static class ExceptionMessageBuilder
     {
         if (ex is SocketException socketException)
             _ = sb.AppendLine(FormattableString.Invariant($"{nameof(SocketException)}.{nameof(SocketException.SocketErrorCode)}: {socketException.SocketErrorCode}"));
+
+        return sb;
+    }
+
+    private static StringBuilder GetHttpRequestExceptionDetails(this StringBuilder sb, Exception ex)
+    {
+        if (ex is HttpRequestException httpRequestException)
+        {
+            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(HttpRequestException)}.{nameof(HttpRequestException.HttpRequestError)}: {httpRequestException.HttpRequestError}"))
+                .AppendLine(FormattableString.Invariant($"{nameof(HttpRequestException)}.{nameof(HttpRequestException.StatusCode)}: {httpRequestException.StatusCode}"));
+        }
+
+        return sb;
+    }
+
+    private static StringBuilder GetHttpIoExceptionDetails(this StringBuilder sb, Exception ex)
+    {
+        if (ex is HttpIOException httpIoException)
+            _ = sb.AppendLine(FormattableString.Invariant($"{nameof(HttpIOException)}.{nameof(HttpIOException.HttpRequestError)}: {httpIoException.HttpRequestError}"));
 
         return sb;
     }

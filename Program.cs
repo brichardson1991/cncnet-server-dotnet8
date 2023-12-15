@@ -22,7 +22,7 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
                     .AddTransient<PeerToPeerUtil>()
                     .AddHttpClient(Options.DefaultName)
                     .ConfigureHttpClient(Startup.ConfigureHttpClient)
-                    .ConfigurePrimaryHttpMessageHandler(Startup.ConfigurePrimaryHttpMessageHandler);
+                    .UseSocketsHttpHandler(Startup.UseSocketsHttpHandler);
             })
             .ConfigureLogging(Startup.ConfigureLogging))
     .Build()

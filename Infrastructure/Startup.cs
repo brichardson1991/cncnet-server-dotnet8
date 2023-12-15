@@ -7,34 +7,33 @@ using Microsoft.Extensions.DependencyInjection;
 
 internal static class Startup
 {
-    public static HttpMessageHandler ConfigurePrimaryHttpMessageHandler(IServiceProvider serviceProvider)
-        => new SocketsHttpHandler
+    public static void UseSocketsHttpHandler(SocketsHttpHandler socketsHttpHandler, IServiceProvider serviceProvider)
+    {
+        socketsHttpHandler.AutomaticDecompression = DecompressionMethods.All;
+        socketsHttpHandler.ConnectCallback = async (context, token) =>
         {
-            AutomaticDecompression = DecompressionMethods.All,
-            ConnectCallback = async (context, token) =>
+            Socket? socket = null;
+
+            try
             {
-                Socket? socket = null;
+                socket = serviceProvider.GetRequiredService<IOptions<ServiceOptions>>().Value.AnnounceIpV4
+                    ? new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+                    : new(SocketType.Stream, ProtocolType.Tcp);
 
-                try
-                {
-                    socket = serviceProvider.GetRequiredService<IOptions<ServiceOptions>>().Value.AnnounceIpV4
-                        ? new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
-                        : new(SocketType.Stream, ProtocolType.Tcp);
+                socket.NoDelay = true;
 
-                    socket.NoDelay = true;
+                await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
 
-                    await socket.ConnectAsync(context.DnsEndPoint, token).ConfigureAwait(false);
+                return new NetworkStream(socket, true);
+            }
+            catch
+            {
+                socket?.Dispose();
 
-                    return new NetworkStream(socket, true);
-                }
-                catch
-                {
-                    socket?.Dispose();
-
-                    throw;
-                }
+                throw;
             }
         };
+    }
 
     public static void ConfigureHttpClient(IServiceProvider serviceProvider, HttpClient httpClient)
     {
