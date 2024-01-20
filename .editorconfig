@@ -84,7 +84,7 @@ csharp_style_expression_bodied_accessors = true:warning
 csharp_style_expression_bodied_constructors = false:warning
 csharp_style_expression_bodied_indexers = true:warning
 csharp_style_expression_bodied_lambdas = true:warning
-csharp_style_expression_bodied_local_functions = false:none
+csharp_style_expression_bodied_local_functions = false:warning
 csharp_style_expression_bodied_methods = when_on_single_line:warning
 csharp_style_expression_bodied_operators = false:warning
 csharp_style_expression_bodied_properties = true:warning
@@ -325,8 +325,29 @@ dotnet_diagnostic.SA1413.severity = none
 dotnet_diagnostic.SA1210.severity = warning
 dotnet_diagnostic.SA0001.severity = none
 csharp_style_prefer_top_level_statements = true:silent
-csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_primary_constructors = true:warning
 dotnet_diagnostic.SA1010.severity = none
+dotnet_diagnostic.SYSLIB1096.severity = warning
+dotnet_diagnostic.SYSLIB1097.severity = warning
+dotnet_diagnostic.CA1865.severity = warning
+dotnet_diagnostic.CA1866.severity = warning
+dotnet_diagnostic.CA1870.severity = warning
+dotnet_diagnostic.IDE0251.severity = warning
+dotnet_diagnostic.IDE0290.severity = warning
+dotnet_diagnostic.IDE0300.severity = warning
+dotnet_diagnostic.IDE0301.severity = warning
+dotnet_diagnostic.IDE0302.severity = warning
+dotnet_diagnostic.IDE0303.severity = warning
+dotnet_diagnostic.IDE0304.severity = warning
+dotnet_diagnostic.IDE0305.severity = warning
+dotnet_diagnostic.ASP0015.severity = warning
+dotnet_diagnostic.ASP0018.severity = warning
+dotnet_diagnostic.ASP0025.severity = warning
+csharp_style_prefer_utf8_string_literals = true:warning
+csharp_style_prefer_readonly_struct = true:warning
+csharp_style_prefer_readonly_struct_member = true:error
+csharp_style_allow_blank_line_after_token_in_conditional_expression_experimental = true:silent
+csharp_style_allow_blank_line_after_token_in_arrow_expression_clause_experimental = true:silent
 
 [*.{cs,vb}]
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
@@ -1014,7 +1035,14 @@ dotnet_diagnostic.SX1309.severity = none
 
 # SX1309S: Static field names should begin with underscore
 dotnet_diagnostic.SX1309S.severity = warning
-dotnet_style_prefer_collection_expression = true:suggestion
+dotnet_style_prefer_collection_expression = when_types_exactly_match:warning
+dotnet_diagnostic.CA1861.severity = warning
+dotnet_diagnostic.CA1862.severity = warning
+dotnet_diagnostic.CA1863.severity = warning
+dotnet_diagnostic.CA1864.severity = warning
+dotnet_diagnostic.CA1868.severity = warning
+dotnet_diagnostic.CA1869.severity = warning
+dotnet_diagnostic.CA2019.severity = warning
 
 [*.vb]
 dotnet_diagnostic.CA1047.severity = warning

@@ -77,7 +77,7 @@ internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDis
             }
             catch (SocketException ex)
             {
-                await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+                await logger.LogExceptionDetailsAsync(ex, LogLevel.Warning).ConfigureAwait(false);
                 continue;
             }
 

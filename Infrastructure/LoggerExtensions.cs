@@ -2,12 +2,12 @@
 
 internal static partial class LoggerExtensions
 {
-    public static async ValueTask LogExceptionDetailsAsync(this ILogger logger, Exception exception, HttpResponseMessage? httpResponseMessage = null)
+    public static async ValueTask LogExceptionDetailsAsync(this ILogger logger, Exception exception, LogLevel logLevel = LogLevel.Error, HttpResponseMessage? httpResponseMessage = null)
     {
-        logger.LogException(exception.GetDetailedExceptionInfo());
+        logger.LogException(exception.GetDetailedExceptionInfo(), logLevel);
 
         if (httpResponseMessage is not null)
-            logger.LogException(await httpResponseMessage.GetHttpResponseMessageInfoAsync().ConfigureAwait(false));
+            logger.LogException(await httpResponseMessage.GetHttpResponseMessageInfoAsync().ConfigureAwait(false), logLevel);
     }
 
     public static void ConfigureLogging(this ILoggingBuilder loggingBuilder, LogLevel serverLogLevel, LogLevel systemLogLevel)
@@ -27,6 +27,6 @@ internal static partial class LoggerExtensions
     [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = "{message}")]
     public static partial void LogWarning(this ILogger logger, string message);
 
-    [LoggerMessage(EventId = 0, Level = LogLevel.Error, Message = "{message}")]
-    private static partial void LogException(this ILogger logger, string message);
+    [LoggerMessage(EventId = 0, Message = "{message}")]
+    private static partial void LogException(this ILogger logger, string message, LogLevel logLevel);
 }

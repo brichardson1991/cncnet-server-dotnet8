@@ -56,22 +56,23 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
 
     protected override bool ValidateClientIds(uint senderId, uint receiverId, ReadOnlyMemory<byte> buffer, SocketAddress socketAddress)
     {
-        var ipEndPoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(socketAddress);
+        var endPoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(socketAddress);
 
         if (senderId is 0u)
         {
             if (receiverId is uint.MaxValue && buffer.Length >= TunnelCommandRequestPacketSize)
-                ExecuteCommand((TunnelCommand)buffer.Span[(PlayerIdSize * 2)..((PlayerIdSize * 2) + TunnelCommandSize)][0], buffer, ipEndPoint);
+                ExecuteCommand((TunnelCommand)buffer.Span[(PlayerIdSize * 2)..((PlayerIdSize * 2) + TunnelCommandSize)][0], buffer, endPoint);
 
             if (receiverId is not 0u)
                 return false;
         }
 
-        if ((senderId == receiverId && senderId is not 0u) || IPAddress.IsLoopback(ipEndPoint.Address) || ipEndPoint.Address.Equals(IPAddress.Broadcast)
-            || ipEndPoint.Address.Equals(IPAddress.Any) || ipEndPoint.Address.Equals(IPAddress.IPv6Any) || ipEndPoint.Port is 0)
+        // ReSharper disable once InvertIf
+        if ((senderId == receiverId && senderId is not 0u) || IPAddress.IsLoopback(endPoint.Address) || endPoint.Address.Equals(IPAddress.Broadcast)
+            || endPoint.Address.Equals(IPAddress.Any) || endPoint.Address.Equals(IPAddress.IPv6Any) || endPoint.Port is 0)
         {
             if (Logger.IsEnabled(LogLevel.Debug))
-                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {ipEndPoint} invalid endpoint."));
+                Logger.LogDebug(FormattableString.Invariant($"V{Version} client {endPoint} invalid endpoint."));
 
             return false;
         }
@@ -210,7 +211,7 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         return true;
     }
 
-    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint ipEndPoint)
+    private void ExecuteCommand(TunnelCommand command, ReadOnlyMemory<byte> data, IPEndPoint endPoint)
     {
         if (TimeSpan.FromTicks(DateTime.UtcNow.Ticks - lastCommandTick).TotalSeconds < CommandRateLimitInSeconds
             || maintenancePasswordSha1 is null || ServiceOptions.Value.MaintenancePassword!.Length is 0)
@@ -225,7 +226,7 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         if (!commandPasswordSha1.SequenceEqual(maintenancePasswordSha1))
         {
             if (Logger.IsEnabled(LogLevel.Warning))
-                Logger.LogWarning(FormattableString.Invariant($"Invalid Maintenance mode request by {ipEndPoint}."));
+                Logger.LogWarning(FormattableString.Invariant($"Invalid Maintenance mode request by {endPoint}."));
 
             return;
         }
@@ -237,6 +238,6 @@ internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions
         };
 
         if (Logger.IsEnabled(LogLevel.Warning))
-            Logger.LogWarning(FormattableString.Invariant($"Maintenance mode set to {MaintenanceModeEnabled} by {ipEndPoint}."));
+            Logger.LogWarning(FormattableString.Invariant($"Maintenance mode set to {MaintenanceModeEnabled} by {endPoint}."));
     }
 }

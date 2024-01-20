@@ -5,6 +5,8 @@ using System.CommandLine.Parsing;
 internal sealed class CnCNetBackgroundService(
     ILogger<CnCNetBackgroundService> logger,
     IOptions<ServiceOptions> options,
+
+    // ReSharper disable once SuggestBaseTypeForParameterInConstructor
     TunnelV3 tunnelV3,
 #if EnableLegacyVersion
     TunnelV2 tunnelV2,

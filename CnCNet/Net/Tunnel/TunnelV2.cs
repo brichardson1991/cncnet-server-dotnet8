@@ -63,6 +63,7 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
     {
         var clonedIpEndPoint = (IPEndPoint)new IPEndPoint(0L, 0).Create(socketAddress);
 
+        // ReSharper disable once InvertIf
         if ((senderId == receiverId && senderId is not 0u) || IPAddress.IsLoopback(clonedIpEndPoint.Address) || clonedIpEndPoint.Address.Equals(IPAddress.Broadcast)
             || clonedIpEndPoint.Address.Equals(IPAddress.Any) || clonedIpEndPoint.Address.Equals(IPAddress.IPv6Any) || clonedIpEndPoint.Port is 0)
         {
@@ -251,6 +252,7 @@ internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions
 
         string msg = FormattableString.Invariant($"[{string.Join(",", clientIds)}]");
 
+        // ReSharper disable once InvertIf
         if (Logger.IsEnabled(LogLevel.Information))
         {
             var host = new IPEndPoint(

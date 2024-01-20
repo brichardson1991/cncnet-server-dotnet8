@@ -2,6 +2,7 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -62,7 +63,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
             }
             catch (SocketException ex)
             {
-                await Logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
+                await Logger.LogExceptionDetailsAsync(ex, LogLevel.Warning).ConfigureAwait(false);
                 continue;
             }
 
@@ -100,7 +101,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return GetIpV6Addresses().FirstOrDefault();
 
-        var localIpV6Addresses = GetWindowsIpV6Addresses().ToList();
+        var localIpV6Addresses = GetWindowsIpV6Addresses().ToFrozenSet();
         (IPAddress IpAddress, PrefixOrigin PrefixOrigin, SuffixOrigin SuffixOrigin) publicIpV6Address = localIpV6Addresses.FirstOrDefault(
             static q => q.PrefixOrigin is PrefixOrigin.RouterAdvertisement && q.SuffixOrigin is SuffixOrigin.LinkLayerAddress);
 
@@ -257,11 +258,11 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         }
         catch (HttpRequestException ex)
         {
-            await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
+            await Logger.LogExceptionDetailsAsync(ex, LogLevel.Error, httpResponseMessage).ConfigureAwait(false);
         }
         catch (HttpIOException ex)
         {
-            await Logger.LogExceptionDetailsAsync(ex, httpResponseMessage).ConfigureAwait(false);
+            await Logger.LogExceptionDetailsAsync(ex, LogLevel.Error, httpResponseMessage).ConfigureAwait(false);
         }
         finally
         {
@@ -325,7 +326,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
     private int CleanupConnections()
 #endif
     {
-        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(static x => x.Value.TimedOut).ToList())
+        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(static x => x.Value.TimedOut).ToFrozenSet())
         {
             CleanupConnection(mapping.Value);
             _ = Mappings!.Remove(mapping.Key, out _);

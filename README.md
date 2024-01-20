@@ -1,4 +1,5 @@
-# cncnet-server
+
+# CnCNet Tunnel Server
 
 * .NET8
 * Cross platform (Windows, Linux, Mac, ...)
@@ -19,12 +20,17 @@ Make sure these ports are open/forwarded to the machine (default ports):
 * UDP 50001 (V3)
 * UDP 3478
 * UDP 8054
+* ICMP (for clients not using the built-in ping mechanism)
 
 ### Arguments
 
-Run `cncnet-server -?` to see a list of possible arguments.
+To see a list of possible arguments run:
 
-Example:
+```
+cncnet-server -?
+```
+
+Example output:
 
 ```
 Description:
@@ -133,6 +139,7 @@ cd /etc/systemd/system/
 ```
 vi cncnet-server.service
 ```
+
 cncnet-server.service example contents:
 
 ```
@@ -171,11 +178,13 @@ sudo ufw allow proto udp from any to any port 8054
 ```
 
 to start on machine start:
+
 ```
 sudo systemctl enable cncnet-server.service
 ```
 
 to inspect logs:
+
 ```
 sudo journalctl -u cncnet-server
 ```
