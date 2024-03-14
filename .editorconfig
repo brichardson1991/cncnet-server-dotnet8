@@ -288,7 +288,7 @@ dotnet_diagnostic.IDE0005.severity = warning
 dotnet_diagnostic.IDE0007.severity = warning
 dotnet_diagnostic.IDE0008.severity = warning
 dotnet_diagnostic.IDE0009.severity = warning
-dotnet_diagnostic.IDE0010.severity = warning
+dotnet_diagnostic.IDE0010.severity = none
 dotnet_diagnostic.IDE0011.severity = warning
 dotnet_diagnostic.IDE0016.severity = warning
 dotnet_diagnostic.IDE0017.severity = warning
@@ -390,6 +390,20 @@ dotnet_diagnostic.SA1618.severity = none
 dotnet_diagnostic.SA1619.severity = none
 dotnet_diagnostic.CA2244.severity = warning
 dotnet_diagnostic.CA2246.severity = warning
+dotnet_diagnostic.ASP0025.severity = warning
+dotnet_diagnostic.ASP0018.severity = warning
+dotnet_diagnostic.ASP0015.severity = warning
+
+# CS1591: Missing XML comment for publicly visible type or member
+dotnet_diagnostic.CS1591.severity = none
+
+# CA1303: Do not pass literals as localized parameters
+dotnet_diagnostic.CA1303.severity = none
+
+# CA1008: Enums should have zero value
+dotnet_diagnostic.CA1008.severity = none
+dotnet_diagnostic.API1002.severity = none
+dotnet_diagnostic.API1003.severity = warning
 
 [*.{cs,vb}]
 dotnet_style_operator_placement_when_wrapping = beginning_of_line
@@ -530,7 +544,7 @@ dotnet_diagnostic.IDE0033.severity = warning
 dotnet_diagnostic.IDE0070.severity = warning
 dotnet_diagnostic.CA1816.severity = warning
 dotnet_diagnostic.CA2201.severity = warning
-dotnet_diagnostic.CA2208.severity = warning
+dotnet_diagnostic.CA2208.severity = none
 dotnet_diagnostic.CA2211.severity = warning
 dotnet_diagnostic.CA2215.severity = warning
 dotnet_diagnostic.CA2219.severity = warning
@@ -545,5 +559,9 @@ dotnet_diagnostic.CA2251.severity = warning
 dotnet_diagnostic.CA2253.severity = warning
 dotnet_diagnostic.CA2254.severity = warning
 dotnet_diagnostic.CA2262.severity = warning
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.MSTEST0001.severity = warning
+dotnet_diagnostic.MSTEST0006.severity = warning
+dotnet_diagnostic.MSTEST0004.severity = warning
 [*.vb]
 dotnet_diagnostic.CA1047.severity = warning
