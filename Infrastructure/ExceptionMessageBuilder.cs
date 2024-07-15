@@ -11,7 +11,7 @@ internal static class ExceptionMessageBuilder
 
     public static async ValueTask<string> GetHttpResponseMessageInfoAsync(this HttpResponseMessage httpResponseMessage)
     {
-        string content = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
+        string content = await httpResponseMessage.Content.ReadAsStringAsync().ConfigureAwait(ConfigureAwaitOptions.None);
 
         return new StringBuilder()
             .Append(FormattableString.Invariant($"{nameof(HttpResponseMessage)}: {httpResponseMessage}"))

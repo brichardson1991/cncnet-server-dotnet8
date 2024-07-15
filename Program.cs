@@ -8,12 +8,14 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
     .UseDefaults()
     .UseHost(Host.CreateDefaultBuilder, static hostBuilder =>
         hostBuilder
-            .UseWindowsService(static o => o.ServiceName = "CnCNetServer")
-            .UseSystemd()
             .ConfigureServices(static services =>
             {
-                services.AddOptions<ServiceOptions>().BindCommandLine();
                 services
+                    .AddOptions<ServiceOptions>()
+                    .BindCommandLine();
+                services
+                    .AddWindowsService(static o => o.ServiceName = "CnCNetServer")
+                    .AddSystemd()
                     .AddHostedService<CnCNetBackgroundService>()
                     .AddSingleton<TunnelV3>()
 #if EnableLegacyVersion
@@ -22,9 +24,10 @@ return await new CommandLineBuilder(RootCommandBuilder.Build())
                     .AddTransient<PeerToPeerUtil>()
                     .AddHttpClient(Options.DefaultName)
                     .ConfigureHttpClient(Startup.ConfigureHttpClient)
-                    .UseSocketsHttpHandler(Startup.UseSocketsHttpHandler);
+                    .UseSocketsHttpHandler(Startup.UseSocketsHttpHandler)
+                    .SetHandlerLifetime(Timeout.InfiniteTimeSpan);
             })
             .ConfigureLogging(Startup.ConfigureLogging))
     .Build()
     .InvokeAsync(args)
-    .ConfigureAwait(false);
+    .ConfigureAwait(ConfigureAwaitOptions.None);

@@ -11,6 +11,7 @@ internal static class Startup
     public static void UseSocketsHttpHandler(SocketsHttpHandler socketsHttpHandler, IServiceProvider serviceProvider)
     {
         socketsHttpHandler.AutomaticDecompression = DecompressionMethods.All;
+        socketsHttpHandler.PooledConnectionLifetime = TimeSpan.FromMinutes(15);
         socketsHttpHandler.ConnectCallback = async (context, token) =>
         {
             Socket? socket = null;

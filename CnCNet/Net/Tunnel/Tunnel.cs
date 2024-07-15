@@ -72,7 +72,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
             DoReceiveAsync(
                 buffer[..receivedBytes],
                 remoteSocketAddress,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(ConfigureAwaitOptions.None);
 #pragma warning restore IDE0058 // Expression value is never used
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
@@ -234,7 +234,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
     private async ValueTask SendMasterServerHeartbeatAsync(int clients, CancellationToken cancellationToken)
     {
         var path = new Uri(
-            FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(ServiceOptions.Value.Name!)}") +
+            FormattableString.Invariant($"?version={Version}&name={Uri.EscapeDataString(ServiceOptions.Value.Name)}") +
             FormattableString.Invariant($"&port={Port}&clients={clients}&maxclients={ServiceOptions.Value.MaxClients}") +
             FormattableString.Invariant($"&masterpw={Uri.EscapeDataString(ServiceOptions.Value.MasterPassword ?? string.Empty)}") +
             FormattableString.Invariant($"&maintenance={(MaintenanceModeEnabled ? 1 : 0)}") +
@@ -245,10 +245,10 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
         try
         {
             httpResponseMessage = await httpClientFactory.CreateClient(Options.DefaultName)
-                .GetAsync(path, cancellationToken).ConfigureAwait(false);
+                .GetAsync(path, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.None);
 
             string responseContent = await httpResponseMessage.EnsureSuccessStatusCode().Content
-                .ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                .ReadAsStringAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.None);
 
             if (!"OK".Equals(responseContent, StringComparison.OrdinalIgnoreCase))
                 throw new MasterServerException(responseContent);
@@ -326,7 +326,7 @@ internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceO
     private int CleanupConnections()
 #endif
     {
-        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(static x => x.Value.TimedOut).ToFrozenSet())
+        foreach (KeyValuePair<uint, TunnelClient> mapping in Mappings!.Where(static x => x.Value.TimedOut))
         {
             CleanupConnection(mapping.Value);
             _ = Mappings!.Remove(mapping.Key, out _);

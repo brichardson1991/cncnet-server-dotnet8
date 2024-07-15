@@ -17,6 +17,7 @@ internal sealed class CnCNetBackgroundService(
 {
     private const int StunPort1 = 3478;
     private const int StunPort2 = 8054;
+    private const int ErrorExitCode = 1;
 
     private bool started;
     private bool stopping;
@@ -31,7 +32,7 @@ internal sealed class CnCNetBackgroundService(
             if (logger.IsEnabled(LogLevel.Information))
                 logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} starting."));
 
-            await base.StartAsync(cancellationToken).ConfigureAwait(false);
+            await base.StartAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.None);
 
             if (logger.IsEnabled(LogLevel.Information))
                 logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} started."));
@@ -58,7 +59,7 @@ internal sealed class CnCNetBackgroundService(
             if (logger.IsEnabled(LogLevel.Information))
                 logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopping."));
 
-            await base.StopAsync(cancellationToken).ConfigureAwait(false);
+            await base.StopAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.None);
 
             if (logger.IsEnabled(LogLevel.Information))
                 logger.LogInfo(FormattableString.Invariant($"Server {options.Value.Name} stopped."));
@@ -111,18 +112,17 @@ internal sealed class CnCNetBackgroundService(
         catch (Exception ex)
         {
             await logger.LogExceptionDetailsAsync(ex).ConfigureAwait(false);
-
-            throw;
+            Environment.Exit(ErrorExitCode);
         }
     }
 
-    private static async Task WhenAllSafe(IEnumerable<Task> tasks)
+    private static async ValueTask WhenAllSafe(IEnumerable<Task> tasks)
     {
         var whenAllTask = Task.WhenAll(tasks);
 
         try
         {
-            await whenAllTask.ConfigureAwait(false);
+            await whenAllTask.ConfigureAwait(ConfigureAwaitOptions.None);
         }
         catch
         {
