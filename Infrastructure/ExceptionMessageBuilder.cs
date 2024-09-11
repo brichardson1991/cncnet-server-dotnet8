@@ -1,8 +1,8 @@
-﻿namespace CnCNetServer;
-
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+
+namespace CnCNetServer;
 
 internal static class ExceptionMessageBuilder
 {

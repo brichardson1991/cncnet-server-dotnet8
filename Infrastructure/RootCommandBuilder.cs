@@ -1,8 +1,8 @@
-﻿namespace CnCNetServer;
-
-using System.CommandLine;
+﻿using System.CommandLine;
 using System.CommandLine.NamingConventionBinder;
 using System.CommandLine.Parsing;
+
+namespace CnCNetServer;
 
 internal static class RootCommandBuilder
 {

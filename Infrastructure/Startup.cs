@@ -1,10 +1,10 @@
-﻿namespace CnCNetServer;
-
-using System.Collections.Frozen;
+﻿using System.Collections.Frozen;
 using System.CommandLine;
 using System.CommandLine.Hosting;
 using System.CommandLine.Invocation;
 using Microsoft.Extensions.DependencyInjection;
+
+namespace CnCNetServer;
 
 internal static class Startup
 {

@@ -1,7 +1,7 @@
-﻿namespace CnCNetServer;
-
-using System.Buffers;
+﻿using System.Buffers;
 using System.Collections.Concurrent;
+
+namespace CnCNetServer;
 
 internal sealed class PeerToPeerUtil(ILogger<PeerToPeerUtil> logger) : IAsyncDisposable
 {

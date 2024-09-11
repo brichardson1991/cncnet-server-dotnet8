@@ -1,6 +1,6 @@
-﻿namespace CnCNetServer;
+﻿using System.CommandLine.Parsing;
 
-using System.CommandLine.Parsing;
+namespace CnCNetServer;
 
 internal sealed class CnCNetBackgroundService(
     ILogger<CnCNetBackgroundService> logger,

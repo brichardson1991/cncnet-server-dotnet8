@@ -1,7 +1,7 @@
-﻿namespace CnCNetServer;
-
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
+
+namespace CnCNetServer;
 
 internal sealed class TunnelV3(ILogger<TunnelV3> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
     : Tunnel(logger, options, httpClientFactory)

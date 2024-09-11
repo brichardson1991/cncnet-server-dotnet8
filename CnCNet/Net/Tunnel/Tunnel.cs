@@ -1,11 +1,11 @@
-﻿namespace CnCNetServer;
-
-using System.Buffers;
+﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+
+namespace CnCNetServer;
 
 internal abstract class Tunnel(ILogger logger, IOptions<ServiceOptions> serviceOptions, IHttpClientFactory httpClientFactory)
     : IAsyncDisposable

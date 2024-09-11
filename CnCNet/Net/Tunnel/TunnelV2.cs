@@ -1,8 +1,8 @@
-﻿namespace CnCNetServer;
-
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+
+namespace CnCNetServer;
 
 internal sealed class TunnelV2(ILogger<TunnelV2> logger, IOptions<ServiceOptions> options, IHttpClientFactory httpClientFactory)
     : Tunnel(logger, options, httpClientFactory)
